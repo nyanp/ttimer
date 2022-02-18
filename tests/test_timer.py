@@ -1,7 +1,4 @@
 import time
-
-import pytest
-
 from ttimer.timer import Timer
 
 
@@ -26,7 +23,7 @@ def test_nested():
     assert t["b"].cpu_time == t["b"].own_cpu_time
 
 
-def test_tree():
+def test_count():
     t = Timer()
 
     with t("a"):
@@ -40,11 +37,25 @@ def test_tree():
         time.sleep(0.01)
 
     assert t["a"].count == 1
-    with pytest.raises(KeyError):
-        print(t["b"].count)
-    assert t[("a", "b")].count == 1
-    assert t[("b",)].count == 1
+    assert t["b"].count == 2
     assert t["c"].count == 1
+
+
+def test_auto_name():
+    t = Timer()
+
+    with t("b"):
+        pass
+
+    with t:
+        pass
+
+    with t():
+        pass
+
+    assert t.trees[0].record.name == "b"
+    assert t.trees[1].record.name.startswith("test_timer.py")
+    assert t.trees[2].record.name.startswith("test_timer.py")
 
 
 def test_render():

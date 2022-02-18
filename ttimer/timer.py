@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import copy
+import inspect
+import os
 import time
 from contextlib import ContextDecorator
-from dataclasses import replace
-from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 from anytree import NodeMixin, RenderTree
 from tabulate import tabulate
@@ -22,23 +24,14 @@ class StopWatch:
         self.elapsed_cpu_time = time.process_time() - self.start[1]
 
 
-class Record(NodeMixin):
-    def __init__(self,
-                 name: str,
-                 count: int = 0,
-                 time: float = 0.0,
-                 own_time: float = 0.0,
-                 cpu_time: float = 0.0,
-                 own_cpu_time: float = 0.0,
-                 parent: Optional[Record] = None):
-        super().__init__()
-        self.name = name
-        self.count = count
-        self.time = time
-        self.cpu_time = cpu_time
-        self.own_time = own_time
-        self.own_cpu_time = own_cpu_time
-        self.parent = parent
+@dataclass
+class Record:
+    name: str
+    count: int = 0
+    time: float = 0.0
+    own_time: float = 0.0
+    cpu_time: float = 0.0
+    own_cpu_time: float = 0.0
 
     def on_stop(self, stop_watch: StopWatch) -> None:
         self.time += stop_watch.elapsed_time
@@ -58,23 +51,28 @@ class Record(NodeMixin):
         self.own_cpu_time += other.own_cpu_time
         self.count += other.count
 
-    def copy(self) -> Record:
-        return replace(self, parent=None)
+
+class Node(NodeMixin):
+    def __init__(self, record: Record, parent: Optional[Node] = None):
+        super().__init__()
+        self.record = record
+        self.parent = parent
 
 
 class Timer(ContextDecorator):
     def __init__(self, stream_on_exit: Optional = None):
-        self.active_watches = []  # type: List[StopWatch]
-        self.records = {}  # type: Dict[Tuple[str, ...], Record]
-        self.current_name = "root"
-        self.stream_on_exit = stream_on_exit
+        self._watches = []  # type: List[StopWatch]
+        self._records = {}  # type: Dict[Tuple[str, ...], Node]
+        self._current_name = ""
+        self._stream_on_exit = stream_on_exit
 
     def __call__(self, name: str = "") -> Timer:
-        if name:
-            self.current_name = name
+        self._current_name = name
         return self
 
     def __enter__(self) -> Timer:
+        if not self._current_name:
+            self._current_name = self._get_caller_name(2)
         self._push()
         return self
 
@@ -82,83 +80,66 @@ class Timer(ContextDecorator):
         self._pop()
 
     def __del__(self) -> None:
-        if self.stream_on_exit:
-            self.stream_on_exit.write(self.render())
+        if self._stream_on_exit:
+            self._stream_on_exit.write(self.render())
 
-    def __getitem__(self, item: Union[str, Tuple[str, ...]]) -> Record:
-        if isinstance(item, tuple):
-            return self.records[item]
-        else:
-            candidates = [r for k, r in self.records.items() if k[-1] == item]
-            if len(candidates) >= 2:
-                raise KeyError(f"The name {item} is ambiguous. Call flatten() before, or use full path")
-            elif len(candidates) == 1:
-                return candidates[0]
-            else:
-                raise KeyError(f"{item} not found")
+    def __getitem__(self, item: str) -> Record:
+        candidates = [r for k, r in self._records.items() if k[-1] == item]
+        if not candidates:
+            raise KeyError(f"{item} not found")
+        record = copy.copy(candidates[0].record)
+        for c in candidates[1:]:
+            record.merge(c.record)
+        return record
 
     @property
-    def root_records(self) -> List[Record]:
-        return [r for r in self.records.values() if not r.parent]
-
-    def frozen(self) -> Timer:
-        copied = self.copy()
-        while copied.active_watches:
-            copied._pop()
-        return copied
-
-    def flatten(self) -> Timer:
-        t = Timer(None)
-        for k, v in self.records.items():
-            if k[-1] in t.records:
-                t.records[k[-1]].merge(v)
-            else:
-                t.records[k[-1]] = v.copy()
-
-        return t
-
-    def copy(self) -> Timer:
-        t = Timer(None)
-        t.records = copy.deepcopy(self.records)
-        t.active_watches = copy.deepcopy(self.active_watches)
-        return t
+    def trees(self) -> List[Node]:
+        return [r for r in self._records.values() if not r.parent]
 
     def render(self) -> str:
         rendered = []
 
-        for root in self.root_records:
+        for root in self.trees:
             for pre, _, node in RenderTree(root):
+                rec = node.record
                 rendered.append(
-                    [pre + node.name, node.count, node.time, node.own_time, node.cpu_time, node.own_cpu_time])
+                    [pre + rec.name, rec.count, rec.time, rec.own_time, rec.cpu_time, rec.own_cpu_time])
 
         return tabulate(rendered, headers=["path", "count", "time", "own time", "cpu time", "own cpu time"])
 
     def _push(self) -> None:
-        parent = self.records.get(self._current_key)
+        parent = self._records.get(self._stack)
 
-        self.active_watches.append(StopWatch(self.current_name))
-        if self._current_key not in self.records:
-            self.records[self._current_key] = Record(self._current_key[-1], parent=parent)
+        self._watches.append(StopWatch(self._current_name))
+        if self._stack not in self._records:
+            self._records[self._stack] = Node(Record(self._stack[-1]), parent=parent)
 
     def _pop(self) -> None:
         self._current_watch.stop()
 
-        self._current_record.on_stop(self._current_watch)
-        if self._current_record.parent:
-            self._current_record.parent.on_stop_child(self._current_watch)
+        self._current_node.record.on_stop(self._current_watch)
+        if self._current_node.parent:
+            self._current_node.parent.record.on_stop_child(self._current_watch)
 
-        self.active_watches.pop()
+        self._watches.pop()
+        self._current_name = self._stack[-1] if self._stack else ""
 
     @property
-    def _current_record(self) -> Record:
-        return self.records[self._current_key]
+    def _current_node(self) -> Node:
+        return self._records[self._stack]
 
     @property
     def _current_watch(self) -> StopWatch:
-        assert self.active_watches
-        return self.active_watches[-1]
+        assert self._watches
+        return self._watches[-1]
 
     @property
-    def _current_key(self) -> Tuple[str, ...]:
-        path = [t.name for t in self.active_watches]
-        return tuple(path)
+    def _stack(self) -> Tuple[str, ...]:
+        return tuple([t.name for t in self._watches])
+
+    def _get_caller_name(self, index: int) -> str:
+        try:
+            callee = inspect.stack()[index]
+            return f"{os.path.basename(callee.filename)}:{callee.lineno}"
+        except Exception:
+            return "(unknown)"
