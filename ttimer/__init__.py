@@ -1,1 +1,3 @@
-from ttimer.timer import Timer, Record
+from ttimer.timer import Record, Timer
+
+__all__ = ["Record", "Timer"]

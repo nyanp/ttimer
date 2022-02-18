@@ -103,9 +103,20 @@ class Timer(ContextDecorator):
             for pre, _, node in RenderTree(root):
                 rec = node.record
                 rendered.append(
-                    [pre + rec.name, rec.count, rec.time, rec.own_time, rec.cpu_time, rec.own_cpu_time])
+                    [
+                        pre + rec.name,
+                        rec.count,
+                        rec.time,
+                        rec.own_time,
+                        rec.cpu_time,
+                        rec.own_cpu_time,
+                    ]
+                )
 
-        return tabulate(rendered, headers=["path", "count", "time", "own time", "cpu time", "own cpu time"])
+        return tabulate(
+            rendered,
+            headers=["path", "count", "time", "own time", "cpu time", "own cpu time"],
+        )
 
     def _push(self) -> None:
         parent = self._records.get(self._stack)
