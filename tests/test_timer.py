@@ -42,6 +42,49 @@ def test_count():
     assert t["c"].count == 1
 
 
+def test_nodes():
+    t = Timer()
+
+    with t("a"):
+        with t("b"):
+            with t("c"):
+                pass
+
+            with t("d"):
+                pass
+
+        with t("d"):
+            pass
+
+    assert len(t.nodes) == 5
+    assert t.nodes[0].stack == ("a",)
+    assert t.nodes[0].children[0].stack == ("a", "b")
+    assert t.nodes[0].children[1].stack == ("a", "d")
+    assert t.nodes[0].children[0].children[0].stack == ("a", "b", "c")
+    assert t.nodes[0].children[0].children[1].stack == ("a", "b", "d")
+
+
+def test_records():
+    t = Timer()
+
+    with t("a"):
+        with t("b"):
+            with t("c"):
+                pass
+
+            with t("d"):
+                pass
+
+        with t("d"):
+            pass
+
+    assert len(t.records) == 4
+    assert t.records[0].name == "a"
+    assert t.records[1].name == "b"
+    assert t.records[2].name == "c"
+    assert t.records[3].name == "d"
+
+
 def test_auto_name():
     t = Timer()
 
@@ -54,9 +97,9 @@ def test_auto_name():
     with t():
         pass
 
-    assert t.trees[0].record.name == "b"
-    assert t.trees[1].record.name.startswith("test_timer.py")
-    assert t.trees[2].record.name.startswith("test_timer.py")
+    assert t.nodes[0].record.name == "b"
+    assert t.nodes[1].record.name.startswith("test_timer.py")
+    assert t.nodes[2].record.name.startswith("test_timer.py")
 
 
 def test_render():

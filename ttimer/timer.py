@@ -4,9 +4,9 @@ import copy
 import inspect
 import os
 import time
-from contextlib import ContextDecorator
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from logging import Logger
+from typing import IO, Any, Dict, List, Optional, Tuple, Union
 
 from anytree import NodeMixin, RenderTree
 from tabulate import tabulate
@@ -52,21 +52,24 @@ class Record:
         self.count += other.count
 
 
-class Node(NodeMixin):
-    def __init__(self, record: Record, parent: Optional[Node] = None):
+class Node(NodeMixin):  # type: ignore
+    def __init__(
+        self, stack: Tuple[str, ...], record: Record, parent: Optional[Node] = None
+    ):
         super().__init__()
+        self.stack = stack
         self.record = record
         self.parent = parent
 
 
-class Timer(ContextDecorator):
-    def __init__(self, stream_on_exit: Optional = None):
+class Timer:
+    def __init__(self, stream_on_exit: Optional[Union[Logger, IO[str]]] = None):
         self._watches = []  # type: List[StopWatch]
         self._records = {}  # type: Dict[Tuple[str, ...], Node]
         self._current_name = ""
         self._stream_on_exit = stream_on_exit
 
-    def __call__(self, name: str = "") -> Timer:
+    def __call__(self, name: str = "") -> Timer:  # type: ignore
         self._current_name = name
         return self
 
@@ -76,12 +79,15 @@ class Timer(ContextDecorator):
         self._push()
         return self
 
-    def __exit__(self, *exc) -> None:
+    def __exit__(self, *exc: Any) -> None:
         self._pop()
 
     def __del__(self) -> None:
         if self._stream_on_exit:
-            self._stream_on_exit.write(self.render())
+            if isinstance(self._stream_on_exit, Logger):
+                self._stream_on_exit.info(self.render())
+            else:
+                self._stream_on_exit.write(self.render())
 
     def __getitem__(self, item: str) -> Record:
         candidates = [r for k, r in self._records.items() if k[-1] == item]
@@ -94,7 +100,15 @@ class Timer(ContextDecorator):
 
     @property
     def trees(self) -> List[Node]:
-        return [r for r in self._records.values() if not r.parent]
+        return [n for n in self.nodes if not n.parent]
+
+    @property
+    def nodes(self) -> List[Node]:
+        return list(self._records.values())
+
+    @property
+    def records(self) -> List[Record]:
+        return [self[k] for k in {k[-1]: None for k in self._records.keys()}.keys()]
 
     def render(self) -> str:
         rendered = []
@@ -123,7 +137,9 @@ class Timer(ContextDecorator):
 
         self._watches.append(StopWatch(self._current_name))
         if self._stack not in self._records:
-            self._records[self._stack] = Node(Record(self._stack[-1]), parent=parent)
+            self._records[self._stack] = Node(
+                self._stack, Record(self._stack[-1]), parent=parent
+            )
 
     def _pop(self) -> None:
         self._current_watch.stop()
