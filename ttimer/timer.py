@@ -66,21 +66,30 @@ class Node(NodeMixin):  # type: ignore
         self.parent = parent
 
 
+class TimerContext:
+    def __init__(self, timer: Timer, name: str):
+        self.timer = timer
+        self.name = name
+
+    def __enter__(self) -> Timer:
+        self.timer._push(self.name)
+        return self.timer
+
+    def __exit__(self, *exc: Any) -> None:
+        self.timer._pop()
+
+
 class Timer:
     def __init__(self, stream_on_exit: Optional[Union[Logger, IO[str]]] = None):
         self._watches = []  # type: List[StopWatch]
         self._nodes = {}  # type: Dict[Tuple[str, ...], Node]
-        self._current_name = ""
         self._stream_on_exit = stream_on_exit
 
-    def __call__(self, name: str = "") -> Timer:  # type: ignore
-        self._current_name = name
-        return self
+    def __call__(self, name: str = "") -> TimerContext:
+        return TimerContext(self, name or self._get_caller_name(2))
 
     def __enter__(self) -> Timer:
-        if not self._current_name:
-            self._current_name = self._get_caller_name(2)
-        self._push()
+        self._push(self._get_caller_name(2))
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -114,6 +123,10 @@ class Timer:
     def records(self) -> List[Record]:
         return [self[k] for k in {k[-1]: None for k in self._nodes.keys()}.keys()]
 
+    def clear(self) -> None:
+        self._watches = []
+        self._nodes = {}
+
     def render(self, flat: bool = False) -> str:
         rendered = []
 
@@ -134,10 +147,10 @@ class Timer:
             headers=["path", "count", "time", "own time", "cpu time", "own cpu time"],
         )
 
-    def _push(self) -> None:
+    def _push(self, name: str) -> None:
         parent = self._nodes.get(self._stack)
 
-        self._watches.append(StopWatch(self._current_name))
+        self._watches.append(StopWatch(name))
         if self._stack not in self._nodes:
             self._nodes[self._stack] = Node(
                 self._stack, Record(self._stack[-1]), parent=parent
@@ -151,7 +164,6 @@ class Timer:
             self._current_node.parent.record.on_stop_child(self._current_watch)
 
         self._watches.pop()
-        self._current_name = self._stack[-1] if self._stack else ""
 
     def _iterate_nodes(
         self, flat: bool = False
@@ -202,11 +214,21 @@ def get_timers() -> Dict[str, Timer]:
     return _thread_local.timers  # type: ignore
 
 
-def timer(timer_name: str) -> Func:
+def timer(timer_name: Optional[str] = None) -> Func:
     def _timer(func: Func) -> Func:
         @wraps(func)
         def _inner(*args: Any, **kws: Any) -> Any:
-            with get_timer(timer_name)(func.__name__):
+            if timer_name is None:
+                assert "timer" in kws, (
+                    "Without specifying timer_name, "
+                    "you will need to pass the timer with an extra keyword argument"
+                )
+                timer = kws["timer"]
+                assert isinstance(timer, Timer)
+            else:
+                timer = get_timer(timer_name)
+
+            with timer(func.__name__):
                 result = func(*args, **kws)
             return result
 

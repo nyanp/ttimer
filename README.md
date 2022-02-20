@@ -1,13 +1,13 @@
 # ttimer
-ttimer is a simple timer that keeps track of the calling hierarchy.
+ttimer is a simple timer that keeps track of the call hierarchy.
 
 ## Example
 
 ```python
 >>> from time import sleep
->>> from ttimer import Timer
+>>> from ttimer import get_timer
 
->>> timer = Timer()
+>>> timer = get_timer(timer_name="my timer")
 
 >>> with timer("a"):
 >>>     sleep(0.1)
@@ -34,25 +34,60 @@ b            11  0.206903    0.206903    0.000612        0.000612
 
 ```
 
-To accumulate time on the same timer across modules, you can use named timers.
-Named timers are simply thread-local dictionary.
-Timers in the same thread and with the same name share the same instance.
+If the name is not passed in the with-statement, it will be given automatically.
 
 ```python
-from ttimer import get_timer
+>>> from ttimer import get_timer
 
-timer = get_timer(timer_name="module 1")  # named timer
+>>> t = get_timer("foo")
+>>> with t:
+>>>     pass
 
-with timer("a"):
-    pass
+>>> print(t.render())
+path                                  count         time     own time    cpu time    own cpu time
+----------------------------------  -------  -----------  -----------  ----------  --------------
+test_get_timers(test_timer.py:144)        1  0.000347945  0.000347945    0.000228        0.000228
 ```
 
-Named timers can also be used as decorators.
+You can also use decorators instead of with-statement:
 
 ```python
 from ttimer import timer
 
-@timer(timer_name="module 1")
-def foo():
+@timer(timer_name="my timer")
+def foo(a: int):
     pass
+```
+
+In either usage, timers with the same `timer_name` share the same elapsed time.
+
+All named timers are stored as a thread-local variable,
+and you can use `get_timers` to enumerate the stored timers.
+
+```python
+>>> from ttimer import get_timer, get_timers
+
+>>> with get_timer("foo"):
+>>>    pass
+>>> with get_timer("bar"):
+>>>     pass
+
+>>> all_timers = get_timers()
+{'foo': <ttimer.timer.Timer object at 0x7fc9a334fc50>, 'bar': <ttimer.timer.Timer object at 0x7fc9a334df98>}
+```
+
+If you do not prefer such a thread-local variables, you can simply create a local `Timer` instance.
+In this style, if you use a decorator, you should pass the timer you created as an additional `timer` keyword argument.
+
+```python
+from ttimer import Timer, timer
+
+t = Timer()  # local timer
+
+@timer()
+def foo(a: int):
+    pass
+
+with t("a"):
+    foo(a=1, timer=t)  # additional "timer" keyword argument are used to specify the context
 ```

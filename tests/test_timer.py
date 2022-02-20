@@ -98,8 +98,25 @@ def test_auto_name():
         pass
 
     assert t.nodes[0].record.name == "b"
-    assert t.nodes[1].record.name.startswith("test_timer.py")
-    assert t.nodes[2].record.name.startswith("test_timer.py")
+    assert t.nodes[1].record.name.startswith("test_auto_name(test_timer.py:")
+    assert t.nodes[2].record.name.startswith("test_auto_name(test_timer.py:")
+    assert t.nodes[1].record.name != t.nodes[2].record.name
+
+
+def test_auto_name_nested():
+    t = Timer()
+
+    with t():
+        with t("b"):
+            pass
+
+        with t:
+            pass
+
+        with t():
+            pass
+
+    assert len(set([n.record.name for n in t.nodes])) == 4
 
 
 def test_render():
