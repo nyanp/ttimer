@@ -112,4 +112,8 @@ def test_render():
             with t("b"):
                 time.sleep(0.01)
 
+    with t("b"):
+        time.sleep(0.1)
+
     print(t.render())
+    print(t.render(flat=True))
