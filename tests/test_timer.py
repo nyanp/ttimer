@@ -1,6 +1,6 @@
 import time
 
-from ttimer.timer import Timer
+from ttimer.timer import Timer, get_timer, timer
 
 
 def test_nested():
@@ -117,6 +117,70 @@ def test_auto_name_nested():
             pass
 
     assert len(set([n.record.name for n in t.nodes])) == 4
+
+
+@timer("abc")
+def func(a: int) -> None:
+    pass
+
+
+def test_decorator():
+    t1 = get_timer("abc")
+    t2 = get_timer("def")
+
+    with t2:
+        func(2)
+
+    assert t1["func"].count == 1
+
+
+@timer()
+def func2(a: int) -> None:
+    pass
+
+
+def test_decorator_with_local_timer():
+    timer = Timer()
+
+    with timer("foo"):
+        func2(2, timer=timer)
+        func2(2, timer=timer)
+
+    assert len(timer.records) == 2
+    assert timer["func2"].count == 2
+
+
+def test_to_dict():
+    t = Timer()
+
+    with t("a"):
+        time.sleep(0.1)
+
+        for _ in range(10):
+            with t("b"):
+                time.sleep(0.01)
+
+    with t("b"):
+        time.sleep(0.1)
+
+    d = t.to_dict(flat=False)
+    assert len(d) == 3
+    assert d[0]["name"] == "a"
+    assert d[0]["count"] == 1
+    assert d[0]["stack"] == ("a",)
+    assert d[1]["name"] == "b"
+    assert d[1]["count"] == 10
+    assert d[1]["stack"] == ("a", "b")
+    assert d[2]["name"] == "b"
+    assert d[2]["count"] == 1
+    assert d[2]["stack"] == ("b",)
+
+    d = t.to_dict(flat=True)
+    assert len(d) == 2
+    assert d[0]["name"] == "a"
+    assert d[0]["count"] == 1
+    assert d[1]["name"] == "b"
+    assert d[1]["count"] == 11
 
 
 def test_render():
