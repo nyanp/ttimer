@@ -63,6 +63,7 @@ def foo(a: int):
 ```
 
 In either usage, timers with the same `timer_name` share the same elapsed time.
+This is useful when you want to measure times across modules.
 
 All named timers are stored as a thread-local variable,
 and you can use `get_timers` to enumerate the stored timers.
@@ -98,8 +99,8 @@ with t("a"):
 ```
 
 ### Properties
-By accessing `timer[key]`, you can get the accumulated result as an instance of `Record`.
-You can of course also get a list of `Record`.
+By accessing `timer[key]`, you can get the accumulated result as an instance of `Record` dataclass.
+You can of course also get a list of records by `.records`.
 
 ```python
 from dataclasses import asdict
@@ -122,7 +123,7 @@ print(asdict(timer["a"]))  # result is dataclass
 timer.records  # list of records
 ```
 
-The results you can get with them are equivalent to `flat=True`: i.e., the measurements with the same name are accumulated.
+The results you can get with above are equivalent to `flat=True`: i.e., the measurements with the same name are accumulated.
 If you want to get the measurements for each call stack separately, you can use `.nodes`.
 
 ```python
