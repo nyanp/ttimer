@@ -1,7 +1,9 @@
 # ttimer
 ttimer is a simple timer that keeps track of the call hierarchy.
+ttimer is intended to fulfill a use case somewhere between a timer and a profiler: 
+like a timer, it measures only where you explicitly write it, while like a profiler, it handles the call hierarchy and measures own time.
 
-## Example
+## Usage
 
 ```python
 >>> from time import sleep
@@ -34,7 +36,8 @@ b            11  0.206903    0.206903    0.000612        0.000612
 
 ```
 
-If the name is not passed in the with-statement, it will be given automatically.
+If the name is not passed in the with-statement, 
+the name will be automatically assigned from the file and function names.
 
 ```python
 >>> from ttimer import get_timer
@@ -76,7 +79,9 @@ and you can use `get_timers` to enumerate the stored timers.
 {'foo': <ttimer.timer.Timer object at 0x7fc9a334fc50>, 'bar': <ttimer.timer.Timer object at 0x7fc9a334df98>}
 ```
 
-If you do not prefer such a thread-local variables, you can simply create a local `Timer` instance.
+### Local timers
+
+If you do not prefer global (thread-local) variables, you can simply create a local `Timer` instance.
 In this style, if you use a decorator, you should pass the timer you created as an additional `timer` keyword argument.
 
 ```python
@@ -90,4 +95,49 @@ def foo(a: int):
 
 with t("a"):
     foo(a=1, timer=t)  # additional "timer" keyword argument are used to specify the context
+```
+
+### Properties
+By accessing `timer[key]`, you can get the accumulated result as an instance of `Record`.
+You can of course also get a list of `Record`.
+
+```python
+from dataclasses import asdict
+from ttimer import get_timer
+
+timer = get_timer("my timer")
+
+with timer("a"):
+    pass
+
+print("result of {}:".format(timer["a"].name))
+print("time:         {}".format(timer["a"].time))
+print("cpu time:     {}".format(timer["a"].cpu_time))
+print("own time:     {}".format(timer["a"].own_time))
+print("own cpu time: {}".format(timer["a"].own_cpu_time))
+print("count:        {}".format(timer["a"].count))
+
+print(asdict(timer["a"]))  # result is dataclass
+
+timer.records  # list of records
+```
+
+The results you can get with them are equivalent to `flat=True`: i.e., the measurements with the same name are accumulated.
+If you want to get the measurements for each call stack separately, you can use `.nodes`.
+
+```python
+from ttimer import get_timer
+
+timer = get_timer("my timer")
+
+with timer("a"):
+    with timer("b"):
+        pass
+    
+with timer("b"):
+    pass
+
+assert len(timer.records) == 2
+assert len(timer.nodes) == 3
+assert timer.nodes[1].stack == ("a", "b")
 ```
