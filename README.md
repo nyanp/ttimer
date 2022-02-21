@@ -126,8 +126,11 @@ timer.records  # list of records
 The results you can get with above are equivalent to `flat=True`: i.e., the measurements with the same name are accumulated.
 If you want to get the measurements for each call stack separately, you can use `.nodes`.
 
+`.nodes` returns all the nodes, but if you want to get only the root node, use `.trees`. 
+Both return an instance of `Node`, and you can access the child nodes with `.children`, or access the node's records with `.record`.
+
 ```python
-from ttimer import get_timer
+from ttimer import get_timer, Record
 
 timer = get_timer("my timer")
 
@@ -141,4 +144,6 @@ with timer("b"):
 assert len(timer.records) == 2
 assert len(timer.nodes) == 3
 assert timer.nodes[1].stack == ("a", "b")
+assert isinstance(timer.nodes[1].record, Record)
+assert len(timer.trees) == 2
 ```
