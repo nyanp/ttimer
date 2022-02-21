@@ -225,6 +225,7 @@ def timer(timer_name: Optional[str] = None) -> Func:
                 )
                 timer = kws["timer"]
                 assert isinstance(timer, Timer)
+                kws.pop("timer")
             else:
                 timer = get_timer(timer_name)
 
