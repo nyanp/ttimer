@@ -5,7 +5,7 @@ import inspect
 import os
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import wraps
 from logging import Logger
 from typing import IO, Any, Callable, Dict, Generator, List, Optional, Tuple, Union
@@ -130,7 +130,7 @@ class Timer:
     def render(self, flat: bool = False) -> str:
         rendered = []
 
-        for pre, rec in self._iterate_nodes(flat):
+        for pre, _, rec in self._iterate_nodes(flat):
             rendered.append(
                 [
                     pre + rec.name,
@@ -146,6 +146,15 @@ class Timer:
             rendered,
             headers=["path", "count", "time", "own time", "cpu time", "own cpu time"],
         )
+
+    def to_dict(self, flat: bool = False) -> List[Dict[str, Any]]:
+        list_of_dict = []
+        for _, stack, rec in self._iterate_nodes(flat):
+            d = asdict(rec)
+            if not flat:
+                d["stack"] = stack
+            list_of_dict.append(d)
+        return list_of_dict
 
     def _push(self, name: str) -> None:
         parent = self._nodes.get(self._stack)
@@ -167,14 +176,14 @@ class Timer:
 
     def _iterate_nodes(
         self, flat: bool = False
-    ) -> Generator[Tuple[str, Record], None, None]:
+    ) -> Generator[Tuple[str, Tuple[str, ...], Record], None, None]:
         if flat:
             for record in self.records:
-                yield "", record
+                yield "", ("",), record
         else:
             for root in self.trees:
                 for pre, _, node in RenderTree(root):
-                    yield pre, node.record
+                    yield pre, node.stack, node.record
 
     @property
     def _current_node(self) -> Node:
