@@ -36,6 +36,14 @@ b            11  0.206903    0.206903    0.000612        0.000612
 
 ```
 
+ttimer records the following metrics in the with-statement:
+
+- **count**: Call count.
+- **time**: Elapsed time measured by [`perf_counter`](https://docs.python.org/3.10/library/time.html?highlight=time%20perf_counter#time.perf_counter). It includes time elapsed during sleep and is system-wide.
+- **own time**: Time, excluding the total time of its children.
+- **cpu time**: CPU time measured by [`process_time`](https://docs.python.org/3.10/library/time.html?highlight=time%20perf_counter#time.process_time).
+- **own cpu time**: Process time, excluding the total time of its children.
+
 If the name is not passed in the with-statement, 
 the name will be automatically assigned from the file and function names.
 
