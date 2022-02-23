@@ -3,6 +3,15 @@ ttimer is a simple timer that keeps track of the call hierarchy.
 ttimer is intended to fulfill a use case somewhere between a timer and a profiler: 
 like a timer, it measures only where you explicitly write it, while like a profiler, it handles the call hierarchy and measures own time.
 
+## Install
+
+```shell
+> pip install ttimer
+```
+
+or simply copy whole ttimer.py into your project. 
+(the license text is also included in ttimer.py)
+
 ## Usage
 
 ```python
