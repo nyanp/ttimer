@@ -51,15 +51,15 @@ ttimer records the following metrics in the with-statement:
 - **time**: Elapsed time measured by [`perf_counter`](https://docs.python.org/3.10/library/time.html?highlight=time%20perf_counter#time.perf_counter). It includes time elapsed during sleep and is system-wide.
 - **own time**: Time, excluding the total time of its children.
 - **cpu time**: CPU time measured by [`process_time`](https://docs.python.org/3.10/library/time.html?highlight=time%20perf_counter#time.process_time).
-- **own cpu time**: Process time, excluding the total time of its children.
+- **own cpu time**: CPU time, excluding the total time of its children.
 
 If the name is not passed in the with-statement, 
-the name will be automatically assigned from the file and function names.
+the name will be automatically resolved from the file and function names.
 
 ```python
 >>> from ttimer import get_timer
 
->>> t = get_timer("foo")
+>>> t = get_timer(timer_name="foo")
 >>> with t:
 >>>     pass
 
@@ -79,7 +79,7 @@ def foo(a: int):
     pass
 ```
 
-In either usage, timers with the same `timer_name` share the same elapsed time.
+In both `get_timer` and `@timer`, timers with the same `timer_name` share the same elapsed time.
 This is useful when you want to measure times across modules.
 
 All named timers are stored as a thread-local variable,
