@@ -103,10 +103,16 @@ class TimerContext:
 
 
 class Timer:
-    def __init__(self, stream_on_exit: Optional[Union[Logger, IO[str]]] = None):
+    def __init__(self,
+                 stream_on_del: Optional[Union[Logger, IO[str]]] = None,
+                 stream_on_exit: Optional[Union[Logger, IO[str]]] = None,
+                 format_on_exit: Optional[str] = None
+                 ):
         self._watches = []  # type: List[StopWatch]
         self._nodes = {}  # type: Dict[Tuple[str, ...], Node]
+        self._stream_on_del = stream_on_del
         self._stream_on_exit = stream_on_exit
+        self._format_on_exit = format_on_exit or "{name}: {time}sec\n"
 
     def __call__(self, name: str = "") -> TimerContext:
         return TimerContext(self, name or self._get_caller_name(2))
@@ -119,11 +125,8 @@ class Timer:
         self._pop()
 
     def __del__(self) -> None:
-        if self._stream_on_exit:
-            if isinstance(self._stream_on_exit, Logger):
-                self._stream_on_exit.info(self.render())
-            else:
-                self._stream_on_exit.write(self.render())
+        if self._stream_on_del:
+            self._write(self._stream_on_del, self.render())
 
     def __getitem__(self, item: str) -> Record:
         candidates = [r for k, r in self._nodes.items() if k[-1] == item]
@@ -195,6 +198,9 @@ class Timer:
         if self._current_node.parent:
             self._current_node.parent.record.on_stop_child(self._current_watch)
 
+        if self._stream_on_exit:
+            self._write(self._stream_on_exit, self._format_on_exit.format(**asdict(self._current_node.record)))
+
         self._watches.pop()
 
     def _iterate_nodes(
@@ -227,6 +233,12 @@ class Timer:
             return f"{callee.function}({os.path.basename(callee.filename)}:{callee.lineno})"
         except Exception:
             return "(unknown)"
+
+    def _write(self, stream: Union[Logger, IO[str]], content: str) -> None:
+        if isinstance(stream, Logger):
+            stream.info(content)
+        else:
+            stream.write(content)
 
 
 _thread_local = threading.local()

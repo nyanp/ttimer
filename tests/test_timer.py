@@ -1,3 +1,4 @@
+import io
 import time
 
 from ttimer.timer import Timer, get_timer, timer
@@ -198,3 +199,18 @@ def test_render():
 
     print(t.render())
     print(t.render(flat=True))
+
+
+def test_render_on_exit():
+    stream = io.StringIO()
+    t = Timer(stream_on_exit=stream)
+
+    with t("a"):
+        time.sleep(0.1)
+
+    with t("b"):
+        time.sleep(0.1)
+
+    captured = stream.getvalue().splitlines()
+    assert len(captured) == 2
+
