@@ -24,7 +24,7 @@ def get_requirements() -> List[str]:
 setup(
     name="ttimer",
     packages=find_packages(),
-    version="0.0.1",
+    version="0.0.2",
     license="MIT",
     install_requires=get_requirements(),
     author="nyanp",
